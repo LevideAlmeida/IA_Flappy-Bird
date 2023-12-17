@@ -1,5 +1,4 @@
 import pygame
-from pygame.locals import *  # noqa # type:ignore
 from pathlib import Path
 import random
 
@@ -43,7 +42,6 @@ BIRD_IMAGES = [
     ),
 ]
 
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Flappy Bird")
 
 POINTS_FONT = pygame.font.SysFont("", 50, False, False)
@@ -53,27 +51,24 @@ class Bird(pygame.sprite.Sprite):
     # Variaveis de animação de rotação
     MAX_ROTATION = 25
     ROTANTION_SPEED = 20
+    ANIMATED_TIME = 5
 
-    def __init__(self, position_x, position_y):
+    def __init__(self, x, y):
         super().__init__()
-        self.position_x = position_x
-        self.position_y = position_y
+        self.x = x
+        self.y = y
         self.angle = 0
         self.speed = 0
-        self.height = self.position_y
+        self.height = self.y
         self.time = 0
         self.image_index = 0
-        self._sprites = BIRD_IMAGES
-        self.sprite_index = 0
-        self.image = self._sprites[self.sprite_index]
-        self.rect = self.image.get_rect()
-        self.rect.topleft = (self.position_x, self.position_y)
-        self.mask = pygame.mask.from_surface(self.image)
+        self.images = BIRD_IMAGES
+        self.image = self.images[0]
 
     def jump(self):
         self.speed = -10.5
         self.time = 0
-        self.height = self.position_y
+        self.height = self.y
 
     def move(self):
         self.time += 1
@@ -85,30 +80,48 @@ class Bird(pygame.sprite.Sprite):
         elif displacement < 0:
             displacement -= 2
 
-        if displacement < 0 or self.position_y < (self.height + 50):
+        self.y += displacement
+
+        if displacement < 0 or self.y < (self.height + 50):
             if self.angle < self.MAX_ROTATION:
                 self.angle = self.MAX_ROTATION
+        else:
             if self.angle > -90:
-                self.angle += self.ROTANTION_SPEED
+                self.angle -= self.ROTANTION_SPEED
 
-    def update(self):
-        if self.sprite_index >= len(self._sprites):
-            self.sprite_index = 0
+    def draw(self, screen):
+        # definir qual imagem do passaro vai usar
+        self.image_index += 1
 
-        self.image = self._sprites[int(self.sprite_index)]
-        self.sprite_index += 0.1
+        if self.image_index < self.ANIMATED_TIME:
+            self.image = self.images[0]
+        elif self.image_index < self.ANIMATED_TIME*2:
+            self.image = self.images[1]
+        elif self.image_index < self.ANIMATED_TIME*3:
+            self.image = self.images[2]
+        elif self.image_index < self.ANIMATED_TIME*4:
+            self.image = self.images[1]
+        elif self.image_index >= self.ANIMATED_TIME*4 + 1:
+            self.image = self.images[0]
+            self.image_index = 0
 
-        # se o passaro tiver caindo, ele nao vai bater a asa
+        # se o passaro tiver caindo eu não vou bater asa
         if self.angle <= -80:
-            self.image = self._sprites[1]
-            self.sprite_index = 1
+            self.image = self.images[1]
+            self.image_index = self.ANIMATED_TIME*2
 
-        # rotacionando a imagem
+        # desenhar a imagem
         rotated_image = pygame.transform.rotate(self.image, self.angle)
-        self.image = rotated_image
+        image_center_position = self.image.get_rect(
+            topleft=(self.x, self.y)).center
+        rect = rotated_image.get_rect(center=image_center_position)
+        screen.blit(rotated_image, rect.topleft)
+
+    def get_mask(self):
+        return pygame.mask.from_surface(self.image)
 
 
-class Pipes(pygame.sprite.Sprite):
+class Pipe(pygame.sprite.Sprite):
     def __init__(self, position_x):
         super().__init__()
         self.x = position_x
@@ -128,9 +141,9 @@ class Pipes(pygame.sprite.Sprite):
         self.ground_pipe_position = self.height + self.pipes_distance
 
     def move(self):
-        self.x += self.speed
+        self.x -= self.speed
 
-    def draw(self):
+    def draw(self, screen):
         screen.blit(self.top_pipe, (self.x, self.top_pipe_position))
         screen.blit(self.ground_pipe, (self.x, self.ground_pipe_position))
 
@@ -139,10 +152,10 @@ class Pipes(pygame.sprite.Sprite):
         top_pipe_mask = pygame.mask.from_surface(self.top_pipe)
         ground_pipe_mask = pygame.mask.from_surface(self.ground_pipe)
 
-        top_distance = (self.x - bird.position_x,
-                        self.top_pipe_position - round(bird.position_y))
-        ground_distance = (self.x - bird.position_x,
-                           self.ground_pipe_position - round(bird.position_y))
+        top_distance = (self.x - bird.x,
+                        self.top_pipe_position - round(bird.y))
+        ground_distance = (self.x - bird.x,
+                           self.ground_pipe_position - round(bird.y))
 
         top_point = bird_mask.overlap(top_pipe_mask, top_distance)
         ground_point = bird_mask.overlap(ground_pipe_mask, ground_distance)
@@ -167,35 +180,91 @@ class Ground(pygame.sprite.Sprite):
         self.x1 -= self.speed
         self.x2 -= self.speed
 
-        if self.x1 + self.width > 0:
+        if self.x1 + self.width - 5 < 0:
             self.x1 = self.width
-        if self.x2 + self.width > 0:
+        if self.x2 + self.width - 5 < 0:
             self.x2 = self.width
 
-    def draw(self):
+    def draw(self, screen):
         screen.blit(self.image, (self.x1, self.y))
         screen.blit(self.image, (self.x2, self.y))
 
 
-all_sprites = pygame.sprite.Group()
+def draw_screen(screen, birds, pipes, ground, score):
+    screen.blit(BACKGROUND_IMAGE, (0, -200))
+    for bird in birds:
+        bird.draw(screen)
 
-bird = Bird(300, 400)
-all_sprites.add(bird)
+    for pipe in pipes:
+        pipe.draw(screen)
 
-clock = pygame.time.Clock()
-fps = 60
+    text = POINTS_FONT.render(f"Score: {score}", True, (0, 0, 0))
 
-while True:
-    clock.tick(fps)
+    screen.blit(text, (10, text.get_height()))
 
-    screen.fill((0, 0, 0))
-    for event in pygame.event.get():
-        if event.type == QUIT:  # noqa
-            pygame.quit()
-            exit()
+    ground.draw(screen)
+    pygame.display.flip()
 
-    all_sprites.draw(screen)
-    all_sprites.update()
-    bird.update()
 
-    pygame.display.update()
+def main():
+    birds = [Bird(200, 300)]
+    ground = Ground(SCREEN_HEIGHT - 160)
+    pipes = [Pipe(SCREEN_WIDTH)]
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    score = 0
+    clock = pygame.time.Clock()
+    fps = 30
+
+    while True:
+        clock.tick(fps)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:  # noqa
+                pygame.quit()
+                exit()
+
+            if event.type == pygame.KEYDOWN:  # noqa
+                if event.key == pygame.K_SPACE:
+                    for bird in birds:
+                        bird.jump()
+                if event.key == pygame.K_r:
+                    birds = [Bird(200, 300)]
+                    ground = Ground(SCREEN_HEIGHT - 160)
+                    pipes = [Pipe(SCREEN_WIDTH)]
+                    score = 0
+
+        for bird in birds:
+            bird.move()
+        ground.move()
+
+        add_pipe = False
+        remove_pipes = []
+        for pipe in pipes:
+            for i, bird in enumerate(birds):
+                if pipe.collided(bird):
+                    birds.pop(i)
+
+                if not pipe.passed and pipe.x < bird.x:
+                    pipe.passed = True
+                    add_pipe = True
+
+            pipe.move()
+
+            if pipe.x < -(pipe.ground_pipe.get_width()):
+                remove_pipes.append(pipe)
+
+        if add_pipe:
+            score += 1
+            pipes.append(Pipe(SCREEN_WIDTH))
+
+        for pipe in remove_pipes:
+            pipes.remove(pipe)
+
+        for i, bird in enumerate(birds):
+            if (bird.y + bird.image.get_height()) >= ground.y or bird.y <= 0:
+                birds.pop(i)
+
+        draw_screen(screen, birds, pipes, ground, score)
+
+
+if __name__ == "__main__":
+    main()

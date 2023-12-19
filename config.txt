@@ -12,7 +12,7 @@ activation_options = tanh
 
 # node aggregation options
 aggregation_default = sum
-aggregation mutate_rate 0.0
+aggregation_mutate_rate = 0.0
 aggregation_options = sum
 
 # node bias options
@@ -30,7 +30,7 @@ compatibility_weight_coefficient = 0.5
 
 # connection add/remove rates
 conn_add_prob = 0.5
-conjn_delete_prob = 0.5
+conn_delete_prob = 0.5
 
 # connection enable options
 enabled_default = True
@@ -66,7 +66,7 @@ weight_mutate_power = 0.5
 weight_mutate_rate = 0.8
 weight_replace_rate = 0.1
 
-[DeafaultSpeciesSet]
+[DefaultSpeciesSet]
 compatibility_threshold = 3.0
 
 [DefaultStagnation]
